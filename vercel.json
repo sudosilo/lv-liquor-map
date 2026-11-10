@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/lv-liquor-map-v3.html" }
+  ]
+}
