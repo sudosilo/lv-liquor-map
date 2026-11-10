@@ -17,7 +17,7 @@ way["amenity"="casino"]->.c;
 
 async function tryMirror(url) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
+  const timer = setTimeout(() => ctrl.abort(), 50000);
   try {
     const r = await fetch(url, {
       method: "POST",

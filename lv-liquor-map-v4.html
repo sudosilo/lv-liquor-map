@@ -21,6 +21,7 @@
   --stand: #c0392b;
   --casino: #e67e22;
   --bar: #2980b9;
+  --groc: #7d3c98;
   --shadow: 0 2px 14px rgba(26,22,18,0.14);
   --mono: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   --display: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
@@ -62,7 +63,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); font-family:
 .title b { color: var(--blue); }
 .tsub { font-size: 0.55rem; color: var(--sub); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; white-space: nowrap; }
 
-#hcounts { margin-left: auto; display: grid; grid-template-columns: auto auto; column-gap: 6px; font-size: 0.6rem; color: var(--sub); line-height: 1.45; text-align: right; }
+#hcounts { margin-left: auto; display: grid; grid-template-columns: auto auto; column-gap: 6px; font-size: 0.56rem; color: var(--sub); line-height: 1.3; text-align: right; }
 #hcounts .n { font-weight: 700; }
 
 #mapwrap { flex: 1; position: relative; overflow: hidden; }
@@ -176,6 +177,7 @@ details.sec[open] > summary { border-bottom: 1px solid var(--line); }
 .pbadge.stand { background: #fde8e6; color: var(--stand); }
 .pbadge.casino { background: #fdeedd; color: #a85f00; }
 .pbadge.bar { background: #ddeeff; color: #1a5f8a; }
+.pbadge.groc { background: #f1e6f7; color: #6a2f84; }
 .pbadge.own { background: var(--blue-soft); color: var(--blue); }
 .prow { font-size: 0.61rem; color: var(--sub); line-height: 1.65; }
 .prow strong { color: var(--ink); }
@@ -197,6 +199,7 @@ details.sec[open] > summary { border-bottom: 1px solid var(--line); }
       <span class="n" id="cs" style="color:var(--stand)">...</span><span>standalone</span>
       <span class="n" id="cc" style="color:var(--casino)">...</span><span>casino</span>
       <span class="n" id="cb" style="color:var(--bar)">...</span><span>bar/other</span>
+      <span class="n" id="cg" style="color:var(--groc)">...</span><span>grocery</span>
     </div>
   </div>
 
@@ -227,6 +230,12 @@ details.sec[open] > summary { border-bottom: 1px solid var(--line); }
               <span class="tlabel">Bar / Other</span>
               <span class="tcnt" id="dc-bar">...</span>
               <span class="tsw on" id="sw-bar" style="--sw:var(--bar)"></span>
+            </div>
+            <div class="trow" onclick="toggleCat('groc')">
+              <span class="tdot" style="background:var(--groc)"></span>
+              <span class="tlabel">Grocery / C-Store</span>
+              <span class="tcnt" id="dc-groc">...</span>
+              <span class="tsw" id="sw-groc" style="--sw:var(--groc)"></span>
             </div>
           </div>
         </details>
@@ -290,11 +299,12 @@ details.sec[open] > summary { border-bottom: 1px solid var(--line); }
         <details class="sec">
           <summary>About</summary>
           <div class="secin dinfo">
-            Live data from OpenStreetMap through the Overpass API, cached on this device for twelve hours.<br><br>
+            Store data comes from Overture Maps open places data, built from Meta, Microsoft, Foursquare and business registry listings, baked into this app. Live OpenStreetMap data is merged in on top whenever its servers answer.<br><br>
             <span style="color:var(--stand);font-weight:700;">Red</span> retail liquor, wine and beer stores.<br>
             <span style="color:var(--blue);font-weight:700;">Blue ring</span> marks a chain or branded store.<br>
             <span style="color:var(--casino);font-weight:700;">Orange</span> casino and resort liquor, including any shop or bar inside a mapped casino footprint.<br>
-            <span style="color:var(--bar);font-weight:700;">Blue</span> bars, pubs and nightclubs.<br><br>
+            <span style="color:var(--bar);font-weight:700;">Blue</span> bars, pubs, lounges and nightclubs.<br>
+            <span style="color:var(--groc);font-weight:700;">Purple</span> grocery, convenience and drug stores, which sell package liquor in Nevada. Off by default.<br><br>
             Tap any marker for details.
           </div>
         </details>
@@ -307,6 +317,7 @@ details.sec[open] > summary { border-bottom: 1px solid var(--line); }
       <div class="lr"><span class="ld ring" style="background:var(--stand)"></span>Chain</div>
       <div class="lr"><span class="ld" style="background:var(--casino)"></span>Casino</div>
       <div class="lr"><span class="ld" style="background:var(--bar)"></span>Bar/Other</div>
+      <div class="lr"><span class="ld" style="background:var(--groc)"></span>Grocery</div>
     </div>
 
     <div id="status">Starting up...</div>
@@ -347,8 +358,13 @@ function esc(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 const CASINO_RE = new RegExp("\\b(" + CASINO_NAMES.map(esc).join("|") + ")\\b", "i");
 const CHAIN_RE = new RegExp("\\b(" + CHAIN_NAMES.map(esc).join("|") + ")\\b", "i");
 
-const COLORS = { stand: "#c0392b", casino: "#e67e22", bar: "#2980b9" };
-const RADII = { stand: 8, casino: 9, bar: 6 };
+const COLORS = { stand: "#c0392b", casino: "#e67e22", bar: "#2980b9", groc: "#7d3c98" };
+const RADII = { stand: 8, casino: 9, bar: 6, groc: 6 };
+const PLACES_URL = "/lv-liquor-map-v4-places.json";
+const GROUP_CAT = { s: "stand", c: "casino", b: "bar", g: "groc" };
+let OV_FEATS = [];
+let OSM_FEATS = [];
+let OV_SOURCE = "";
 
 const map = L.map("map", { zoomControl: false }).setView([36.1147, -115.1728], 12);
 L.control.zoom({ position: "topright" }).addTo(map);
@@ -357,8 +373,8 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
-const LG = { stand: L.layerGroup().addTo(map), casino: L.layerGroup().addTo(map), bar: L.layerGroup().addTo(map) };
-const VIS = { stand: true, casino: true, bar: true };
+const LG = { stand: L.layerGroup().addTo(map), casino: L.layerGroup().addTo(map), bar: L.layerGroup().addTo(map), groc: L.layerGroup() };
+const VIS = { stand: true, casino: true, bar: true, groc: false };
 const OWN = { indie: true, chain: true };
 let REGION = "all";
 let QUERY = "";
@@ -435,29 +451,51 @@ async function fetchMirror(url) {
 }
 
 let loading = false;
+async function loadPlaces() {
+  setStatus("Loading valley store data...");
+  try {
+    const r = await fetch(PLACES_URL);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    OV_SOURCE = d.source || "Overture Maps";
+    OV_FEATS = d.rows.map(row => {
+      const [id, name, grp, category, conf, brand, addr, city, zip, phone, website, lat, lon, ds] = row;
+      return {
+        key: "ov/" + id, src: "overture", dataset: ds, id, lat, lon, tags: {},
+        name, base: GROUP_CAT[grp], category, conf,
+        addr: addr || null, city: city || null, zip: zip || null, hours: null,
+        phone: phone || null, website: website || null, brand: brand || null, operator: null,
+        shop: (category || GROUP_CAT[grp]).replace(/_/g, " ")
+      };
+    });
+    rebuild();
+    setStatus("Loaded " + OV_FEATS.length + " places. Checking OpenStreetMap for extras...", true);
+  } catch (e) {
+    setStatus("Store data file did not load. Tap Reload in the menu.");
+  }
+  loadData(false);
+}
+
 async function loadData(force) {
   if (loading) return;
   if (!force) {
     const cached = readCache();
-    if (cached) { ingest(cached); setStatus("Loaded from device cache. Reload in the menu for fresh data.", true); return; }
+    if (cached) { ingest(cached); return; }
   }
   loading = true;
-  setStatus("Pulling liquor data from OpenStreetMap...");
+  if (force) setStatus("Pulling live OpenStreetMap data...");
   try {
     let els;
-    try {
-      els = await fetchServer();
-    } catch (e) {
-      setStatus("Trying OpenStreetMap servers directly...");
-      els = await Promise.any(MIRRORS.map(fetchMirror));
-    }
+    try { els = await fetchServer(); }
+    catch (e) { els = await Promise.any(MIRRORS.map(fetchMirror)); }
     writeCache(els);
     ingest(els);
+    setStatus("OpenStreetMap extras merged in.", true);
   } catch (e) {
     let stale = null;
     try { const c = JSON.parse(localStorage.getItem(CACHE_KEY)); stale = c && c.elements; } catch (x) {}
-    if (stale && stale.length) { ingest(stale); setStatus("Servers busy. Showing older cached data.", true); }
-    else { setStatus("Servers busy. Retrying in thirty seconds..."); setTimeout(() => loadData(true), 30000); }
+    if (stale && stale.length) ingest(stale);
+    if (force) setStatus("OpenStreetMap servers are busy. Showing the baked in store data.", true);
   } finally { loading = false; }
 }
 
@@ -486,25 +524,39 @@ function regionOf(f) {
 }
 const REGION_LABEL = { lasvegas: "Las Vegas", paradise: "Paradise", henderson: "Henderson" };
 
-function classify(f) {
+const BIG_CASINOS = [];
+function classifyOSM(f) {
   const t = f.tags;
   if (t.amenity === "casino") return ["casino", "Tagged as casino"];
-  for (const p of CASINO_POLYS) {
-    if (pointInRing(f.lat, f.lon, p.ring)) return ["casino", "Inside " + p.name + " footprint"];
-  }
-  for (const p of CASINO_PTS) {
-    if (p.key !== f.key && km(f.lat, f.lon, p.lat, p.lon) < 0.08) return ["casino", "On the grounds of " + p.name];
-  }
-  if (CASINO_RE.test(f.name) || (t.operator && CASINO_RE.test(t.operator))) return ["casino", "Casino name match"];
   const a = t.amenity || "";
   if (a === "bar" || a === "pub" || a === "nightclub") return ["bar", "Tagged " + a];
   return ["stand", "Retail shop tag"];
+}
+function casinoOverride(f) {
+  for (const p of CASINO_POLYS) {
+    if (pointInRing(f.lat, f.lon, p.ring)) return "Inside " + p.name + " footprint";
+  }
+  for (const p of BIG_CASINOS) {
+    if (p.key !== f.key && km(f.lat, f.lon, p.lat, p.lon) < 0.12) return "On the grounds of " + p.name;
+  }
+  if (CASINO_RE.test(f.name) || (f.operator && CASINO_RE.test(f.operator))) return "Casino name match";
+  return null;
+}
+
+function normName(n) { return (n || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function isDup(o) {
+  const n = normName(o.name);
+  for (const f of OV_FEATS) {
+    if (Math.abs(f.lat - o.lat) > 0.002 || Math.abs(f.lon - o.lon) > 0.002) continue;
+    const m = normName(f.name);
+    if (km(f.lat, f.lon, o.lat, o.lon) < 0.15 && (m === n || m.startsWith(n.slice(0, 6)) || n.startsWith(m.slice(0, 6)))) return true;
+  }
+  return false;
 }
 
 function ingest(elements) {
   const byKey = new Map();
   CASINO_POLYS = [];
-  CASINO_PTS = [];
   elements.forEach(el => {
     if (el.geometry && el.tags && el.tags.amenity === "casino") {
       CASINO_POLYS.push({ name: el.tags.name || "casino", ring: el.geometry.map(g => [g.lat, g.lon]) });
@@ -513,8 +565,7 @@ function ingest(elements) {
     const k = el.type + "/" + el.id;
     if (!byKey.has(k)) byKey.set(k, el);
   });
-
-  FEATS = [];
+  OSM_FEATS = [];
   byKey.forEach((el, key) => {
     let lat, lon;
     if (el.type === "node") { lat = el.lat; lon = el.lon; }
@@ -522,7 +573,7 @@ function ingest(elements) {
     else return;
     const t = el.tags || {};
     const f = {
-      key, type: el.type, id: el.id, lat, lon, tags: t,
+      key, src: "osm", type: el.type, id: el.id, lat, lon, tags: t,
       name: t.name || t.brand || "(unnamed)",
       addr: [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ") || null,
       city: t["addr:city"] || null,
@@ -534,17 +585,36 @@ function ingest(elements) {
       operator: t["operator"] || null,
       shop: t.shop || t.amenity || null
     };
-    if (t.amenity === "casino") CASINO_PTS.push({ key, lat, lon, name: f.name });
-    FEATS.push(f);
+    const [cat, why] = classifyOSM(f);
+    f.base = cat; f.baseWhy = why;
+    if (isDup(f)) {
+      const twin = OV_FEATS.find(o => km(o.lat, o.lon, f.lat, f.lon) < 0.15 && normName(o.name).slice(0, 6) === normName(f.name).slice(0, 6));
+      if (twin) { if (!twin.hours && f.hours) twin.hours = f.hours; if (!twin.operator && f.operator) twin.operator = f.operator; }
+      return;
+    }
+    OSM_FEATS.push(f);
   });
+  rebuild();
+}
+
+function rebuild() {
+  if (FEATS.length) FEATS.forEach(f => { if (f.marker) f.marker.remove(); });
+  FEATS = OV_FEATS.concat(OSM_FEATS);
+  BIG_CASINOS.length = 0;
+  FEATS.forEach(f => { if (f.base === "casino" && CASINO_RE.test(f.name)) BIG_CASINOS.push({ key: f.key, lat: f.lat, lon: f.lon, name: f.name }); });
 
   FEATS.forEach(f => {
-    const [cat, why] = classify(f);
+    let cat = f.base;
+    let why = f.src === "osm" ? f.baseWhy : "Overture category " + f.shop;
+    if (cat !== "casino") {
+      const o = casinoOverride(f);
+      if (o) { cat = "casino"; why = o; }
+    }
     f.cat = cat;
     f.why = why;
     f.region = regionOf(f);
     f.chain = cat === "stand" && !!(f.brand || CHAIN_RE.test(f.name) || (f.operator && CHAIN_RE.test(f.operator)));
-    f.search = [f.name, f.addr, f.city, f.brand, f.operator, f.zip].filter(Boolean).join(" ").toLowerCase();
+    f.search = [f.name, f.addr, f.city, f.brand, f.operator, f.zip, f.shop].filter(Boolean).join(" ").toLowerCase();
     f.marker = L.circleMarker([f.lat, f.lon], {
       radius: RADII[cat] + (f.chain ? 1 : 0),
       fillColor: COLORS[cat],
@@ -553,10 +623,7 @@ function ingest(elements) {
       fillOpacity: 0.92
     }).bindPopup(() => buildPopup(f), { className: "lpop", maxWidth: 270 });
   });
-
   render();
-  const n = FEATS.length;
-  setStatus("Loaded " + n + " places across the valley.", true);
 }
 
 function passes(f) {
@@ -571,7 +638,7 @@ function passes(f) {
 
 function render() {
   Object.values(LG).forEach(g => g.clearLayers());
-  const cnt = { stand: 0, casino: 0, bar: 0, indie: 0, chain: 0 };
+  const cnt = { stand: 0, casino: 0, bar: 0, groc: 0, indie: 0, chain: 0 };
   FEATS.forEach(f => {
     if (REGION !== "all" && f.region !== REGION) return;
     if (QUERY && !f.search.includes(QUERY)) return;
@@ -583,7 +650,8 @@ function render() {
   document.getElementById("cs").textContent = cnt.stand;
   document.getElementById("cc").textContent = cnt.casino;
   document.getElementById("cb").textContent = cnt.bar;
-  ["stand", "casino", "bar", "indie", "chain"].forEach(k => {
+  document.getElementById("cg").textContent = cnt.groc;
+  ["stand", "casino", "bar", "groc", "indie", "chain"].forEach(k => {
     document.getElementById("dc-" + k).textContent = cnt[k];
   });
   renderList();
@@ -617,7 +685,7 @@ document.getElementById("listsec").addEventListener("toggle", renderList);
 function escHtml(s) { return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])); }
 
 function buildPopup(f) {
-  const lbl = f.cat === "stand" ? "Standalone Liquor" : f.cat === "casino" ? "Casino / Resort" : "Bar / Other";
+  const lbl = { stand: "Standalone Liquor", casino: "Casino / Resort", bar: "Bar / Other", groc: "Grocery / C-Store" }[f.cat];
   let h = '<div class="pname">' + escHtml(f.name) + "</div>";
   h += '<span class="pbadge ' + f.cat + '">' + lbl + "</span>";
   if (f.cat === "stand") h += '<span class="pbadge own">' + (f.chain ? "Chain" : "Independent") + "</span>";
@@ -631,7 +699,8 @@ function buildPopup(f) {
   h += row("WEB", f.website);
   h += row("TAG", f.shop);
   h += row("WHY", f.why);
-  h += '<div class="prow" style="margin-top:4px;"><a href="https://www.openstreetmap.org/' + f.type + "/" + f.id + '" target="_blank" rel="noopener">View on OpenStreetMap</a></div>';
+  h += row("SOURCE", f.src === "osm" ? "OpenStreetMap" : "Overture" + (f.dataset ? " via " + f.dataset : "") + (f.conf != null ? ", confidence " + Math.round(f.conf * 100) + "%" : ""));
+  if (f.src === "osm") h += '<div class="prow" style="margin-top:4px;"><a href="https://www.openstreetmap.org/' + f.type + "/" + f.id + '" target="_blank" rel="noopener">View on OpenStreetMap</a></div>';
   return h;
 }
 
@@ -659,7 +728,7 @@ function onSearch(v) {
 
 function fitAll() {
   const pts = [];
-  ["stand", "casino", "bar"].forEach(c => { if (VIS[c]) LG[c].eachLayer(m => pts.push(m.getLatLng())); });
+  ["stand", "casino", "bar", "groc"].forEach(c => { if (VIS[c]) LG[c].eachLayer(m => pts.push(m.getLatLng())); });
   if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.05));
 }
 
@@ -676,11 +745,11 @@ function locateMe() {
 }
 
 function exportCSV() {
-  const rows = [["name", "category", "ownership", "region", "address", "city", "zip", "hours", "phone", "website", "brand", "operator", "tag", "lat", "lon", "osm"]];
+  const rows = [["name", "category", "ownership", "region", "address", "city", "zip", "hours", "phone", "website", "brand", "operator", "tag", "lat", "lon", "source", "source_id"]];
   visibleStandalone().forEach(f => rows.push([
     f.name, "standalone", f.chain ? "chain" : "independent", REGION_LABEL[f.region],
     f.addr || "", f.city || "", f.zip || "", f.hours || "", f.phone || "", f.website || "",
-    f.brand || "", f.operator || "", f.shop || "", f.lat, f.lon, f.type + "/" + f.id
+    f.brand || "", f.operator || "", f.shop || "", f.lat, f.lon, f.src === "osm" ? "OpenStreetMap" : "Overture", f.src === "osm" ? f.type + "/" + f.id : f.id
   ]));
   const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -705,7 +774,7 @@ function closeDrawer() {
   document.getElementById("mbtn").classList.remove("open");
 }
 
-loadData(false);
+loadPlaces();
 </script>
 </body>
 </html>
